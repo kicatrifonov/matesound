@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ASCII ARCADE</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #08080B;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: "Courier New", Consolas, monospace;
+        }
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #08080B;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            height: 160px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .dpad {
+            position: absolute;
+            left: 20px;
+            bottom: 10px;
+            width: 130px;
+            height: 130px;
+            pointer-events: auto;
+        }
+        .dpad button {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            font-size: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dpad button:active { background: rgba(255, 255, 255, 0.4); }
+        #btn-up { top: 0; left: 45px; }
+        #btn-down { bottom: 0; left: 45px; }
+        #btn-left { top: 45px; left: 0; }
+        #btn-right { top: 45px; right: 0; }
+
+        .actions {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: 140px;
+            height: 90px;
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+        .actions button {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        .actions button:active { background: rgba(255, 255, 255, 0.4); }
+        #btn-action2 { margin-top: 25px; width: 55px; height: 55px; font-size: 18px; }
+
+        #btn-menu {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.6);
+            color: #E8E8F0;
+            border: 1px solid #787884;
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 14px;
+            display: none;
+            border-radius: 4px;
+        }
+
+        @media (hover: none) and (pointer: coarse), (max-width: 800px) {
+            #mobile-controls, #btn-menu {
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<button id="btn-menu">МЕНЮ (ESC)</button>
+
+<div id="mobile-controls">
+    <div class="dpad">
+        <button id="btn-up">▲</button>
+        <button id="btn-left">◀</button>
+        <button id="btn-right">▶</button>
+        <button id="btn-down">▼</button>
+    </div>
+    <div class="actions">
+        <button id="btn-action2">B</button>
+        <button id="btn-action1">A</button>
+    </div>
+</div>
+
+<script>
+// ========================= КОНСТАНТЫ И ШРИФТ =========================
+const COLORS = {
+    BG: '#08080B', DIM: '#41414A', MID: '#787884', TEXT: '#B2B2BE',
+    BRIGHT: '#E8E8F0', WHITE: '#FFFFFF', GREEN: '#78FF78', YELLOW: '#FFDC64'
+};
+
+const BLOCK = {
+    'A': [" ### ", "#   #", "#####", "#   #", "#   #"], 'B': ["#### ", "#   #", "#### ", "#   #", "#### "],
+    'C': [" ####", "#    ", "#    ", "#    ", " ####"], 'D': ["#### ", "#   #", "#   #", "#   #", "#### "],
+    'E': ["#####", "#    ", "#### ", "#    ", "#####"], 'F': ["#####", "#    ", "#### ", "#    ", "#    "],
+    'G': [" ####", "#    ", "# ## ", "#   #", " ####"], 'H': ["#   #", "#   #", "#####", "#   #", "#   #"],
+    'I': ["#####", "  #  ", "  #  ", "  #  ", "#####"], 'J': ["#####", "   # ", "   # ", "#  # ", " ##  "],
+    'K': ["#   #", "#  # ", "###  ", "#  # ", "#   #"], 'L': ["#    ", "#    ", "#    ", "#    ", "#####"],
+    'M': ["#   #", "## ##", "# # #", "#   #", "#   #"], 'N': ["#   #", "##  #", "# # #", "#  ##", "#   #"],
+    'O': [" ### ", "#   #", "#   #", "#   #", " ### "], 'P': ["#### ", "#   #", "#### ", "#    ", "#    "],
+    'Q': [" ### ", "#   #", "# # #", "#  # ", " ## #"], 'R': ["#### ", "#   #", "#### ", "#  # ", "#   #"],
+    'S': [" ####", "#    ", " ### ", "    #", "#### "], 'T': ["#####", "  #  ", "  #  ", "  #  ", "  #  "],
+    'U': ["#   #", "#   #", "#   #", "#   #", " ### "], 'V': ["#   #", "#   #", "#   #", " # # ", "  #  "],
+    'W': ["#   #", "#   #", "# # #", "## ##", "#   #"], 'X': ["#   #", " # # ", "  #  ", " # # ", "#   #"],
+    'Y': ["#   #", " # # ", "  #  ", "  #  ", "  #  "], 'Z': ["#####", "   # ", "  #  ", " #   ", "#####"],
+    ' ': ["     ", "     ", "     ", "     ", "     "], '0': [" ### ", "#  ##", "# # #", "##  #", " ### "],
+    '1': ["  #  ", " ##  ", "  #  ", "  #  ", "#####"], '2': [" ### ", "#   #", "  ## ", " #   ", "#####"],
+    '3': ["#### ", "    #", "  ## ", "    #", "#### "], '4': ["#   #", "#   #", "#####", "    #", "    #"],
+    '5': ["#####", "#    ", "#### ", "    #", "#### "], '6': [" ####", "#    ", "#### ", "#   #", " ### "],
+    '7': ["#####", "    #", "   # ", "  #  ", "  #  "], '8': [" ### ", "#   #", " ### ", "#   #", " ### "],
+    '9': [" ### ", "#   #", " ####", "    #", "#### "]
+};
+
+const WORDS = [
+    ["ДОМ", "Здесь тебя ждут. Крыша, окно и тёплый свет после смены."],
+    ["КОТ", "Пушистый сосед, который спит на твоей клавиатуре."],
+    ["ЛУНА", "Ночной фонарь, который никто не выключает."],
+    ["СНЕГ", "Белая тишина, что падает с неба зимой."],
+    ["КЛЮЧ", "Маленький металлический ответ на вопрос, как войти."],
+    ["ЧАСЫ", "Идут, хотя ног нет. Всю смену напоминают о дедлайне."],
+    ["ОКНО", "Рама, через которую видно звёзды над городом."],
+    ["КНИГА", "Молчаливый рассказчик, живущий на полке."],
+    ["ДОЖДЬ", "Небо плачет по асфальту, а ты забыл зонт."],
+    ["ВЕТЕР", "Его не видно, но он забирает тепло у щёк."],
+    ["ПЕСНЯ", "Слова и мелодия, которые застревают в голове."],
+    ["СВЕЧА", "Огонёк, который тает, пока освещает комнату."],
+    ["ОКЕАН", "Солёная пустыня, у которой посередине нет берегов."],
+    ["ЗВЕЗДА", "Далёкая точка, свет которой старше тебя."],
+    ["ДОРОГА", "Полоса под ногами, что ведёт от работы к дому."],
+    ["РАКЕТА", "Единственный транспорт, что увозит с планеты."],
+    ["ГИТАРА", "Шесть струн и деревянный голос."],
+    ["ФОНАРЬ", "Столб с лампой, под которым меньше страшно идти."],
+    ["ЗЕРКАЛО", "Показывает того, кто устал, но всё ещё держится."],
+    ["ТЕЛЕФОН", "Карманное окно в чужие голоса."],
+    ["ЧЕМОДАН", "Ручка, колёса и отпуск внутри."],
+    ["ПОДУШКА", "Мягкая пристань для уставшей головы."],
+    ["СНЕЖИНКА", "Шесть лучей, и ни одна не повторяется."],
+    ["ЛЕСТНИЦА", "Ступени вверх, когда лифт опять не работает."],
+    ["ТЕЛЕСКОП", "Труба, которая приближает звёзды к глазу."]
+];
+const ALPHABET = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯ";
+
+// ========================= УТИЛИТЫ =========================
+function wrapText(text, width) {
+    let lines = [], cur = "";
+    for (let word of text.split(' ')) {
+        if (cur.length + word.length + 1 <= width) {
+            cur = (cur + " " + word).trim();
+        } else {
+            lines.push(cur);
+            cur = word;
+        }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+}
+
+// ========================= ЭКРАН =========================
+class AsciiScreen {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+    }
+    resize() {
+        this.cols = window.innerWidth < 600 ? 42 : 86;
+        this.rows = 30;
+        let base_cw = 10, base_ch = 20;
+        this.canvas.width = this.cols * base_cw;
+        this.canvas.height = this.rows * base_ch;
+        this.cw = base_cw;
+        this.ch = base_ch;
+        this.fontSize = 16;
+        this.ctx.font = `${this.fontSize}px "Courier New", Consolas, monospace`;
+        this.ctx.textBaseline = 'top';
+        this.ctx.textAlign = 'left';
+        
+        let scaleX = window.innerWidth / this.canvas.width;
+        let scaleY = window.innerHeight / this.canvas.height;
+        let scale = Math.min(scaleX, scaleY) * 0.95;
+        
+        this.canvas.style.width = (this.canvas.width * scale) + 'px';
+        this.canvas.style.height = (this.canvas.height * scale) + 'px';
+        this.effective_cw = this.cw * scale;
+        this.effective_ch = this.ch * scale;
+    }
+    put(x, y, text, color) {
+        if (y < 0 || y >= this.rows) return;
+        this.ctx.fillStyle = color;
+        this.ctx.font = `${this.fontSize}px "Courier New", Consolas, monospace`;
+        for (let i = 0; i < text.length; i++) {
+            let cx = x + i;
+            if (cx >= 0 && cx < this.cols) {
+                let ch = text[i];
+                if (ch === ' ') continue;
+                let metrics = this.ctx.measureText(ch);
+                let tx = cx * this.cw + (this.cw - metrics.width) / 2;
+                let ty = y * this.ch + (this.ch - this.fontSize) / 2 + 2;
+                this.ctx.fillText(ch, tx, ty);
+            }
+        }
+    }
+    center(y, text, color, x0 = 0, w = null) {
+        w = w || this.cols;
+        let x = x0 + Math.floor((w - text.length) / 2);
+        this.put(x, y, text, color);
+    }
+    clear() {
+        this.ctx.fillStyle = COLORS.BG;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    box(x, y, w, h, color, title = null, hz = '-', vt = '|', cn = '+') {
+        let top = cn + hz.repeat(Math.max(0, w - 2)) + cn;
+        if (title) {
+            let t = " " + title + " ";
+            if (3 + t.length <= top.length) top = top.substring(0, 3) + t + top.substring(3 + t.length);
+        }
+        this.put(x, y, top, color);
+        for (let r = 1; r < h - 1; r++) {
+            this.put(x, y + r, vt, color);
+            this.put(x + w - 1, y + r, vt, color);
+        }
+        this.put(x, y + h - 1, cn + hz.repeat(Math.max(0, w - 2)) + cn, color);
+    }
+    banner(y, text, color) {
+        let rows = ["", "", "", "", ""];
+        for (let c of text.toUpperCase()) {
+            let g = BLOCK[c] || BLOCK[' '];
+            for (let i = 0; i < 5; i++) rows[i] += g[i] + " ";
+        }
+        for (let i = 0; i < 5; i++) this.center(y + i, rows[i].trimRight(), color);
+    }
+}
+
+// ========================= ПРОГРЕСС И ЗВЁЗДЫ =========================
+class Progress {
+    constructor() {
+        this.total_stars = 0;
+        this.streaks = { word: 0, micro: 0, snake: 0, wires: 0, tetris: 0 };
+        this.pending_star = false;
+    }
+    on_level_complete(game_name) {
+        this.streaks[game_name]++;
+        if (this.streaks[game_name] >= 3) {
+            this.streaks[game_name] = 0;
+            this.total_stars++;
+            this.pending_star = true;
+            return true;
+        }
+        return false;
+    }
+}
+
+class Starfield {
+    constructor(n = 120) {
+        this.stars = [];
+        for (let i = 0; i < n; i++) {
+            this.stars.push({ x: Math.floor(Math.random() * 86), y: Math.floor(Math.random() * 30), ph: Math.random() * 6.28, sp: 0.6 + Math.random() * 1.6 });
+        }
+    }
+    draw(scr, t) {
+        let cols = scr.cols, rows = scr.rows;
+        for (let st of this.stars) {
+            let sx = st.x % cols, sy = st.y % rows;
+            let b = 0.5 + 0.5 * Math.sin(t * st.sp + st.ph);
+            let v = Math.floor(26 + b * 46);
+            let ch = b < 0.55 ? '.' : (b < 0.88 ? '*' : '+');
+            scr.put(sx, sy, ch, `rgb(${v},${v},${v+8})`);
+        }
+    }
+}
+
+// ========================= ИГРА 1: СЛОВОПЛЕТ =========================
+class WordGame {
+    constructor(scr, stars, progress) {
+        this.s = scr; this.stars = stars; this.progress = progress;
+        this.t = 0.0; this.regions = []; this.name = "СЛОВОПЛЕТ"; this.key = "word";
+        this.reset();
+    }
+    reset() {
+        this.level = 0; this.score = 0; this.lives = 3; this.hints = 3;
+        this.hints_used = 0; this.mistakes = 0; this.start_time = performance.now();
+        this.return_to_menu = false; this.state = "TITLE"; this.load_level();
+    }
+    load_level() {
+        let wd = WORDS[this.level]; this.word = wd[0]; this.riddle = wd[1];
+        let letters = this.word.split('');
+        let extra = this.level < 5 ? 0 : (this.level < 12 ? 1 : (this.level < 19 ? 2 : 3));
+        for (let i = 0; i < extra; i++) letters.push(ALPHABET[Math.floor(Math.random() * ALPHABET.length)]);
+        for (let i = letters.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1)); [letters[i], letters[j]] = [letters[j], letters[i]]; }
+        this.tiles = letters.map(c => ({ch: c, used: false, locked: false}));
+        this.slots = new Array(this.word.length).fill(null);
+        this.type_pos = 0.0; this.shake = 0.0; this.msg = "Собирай буквы кликами или клавиатурой"; this.msg_t = 3.0;
+        this.word_start = performance.now(); this.gained = 0;
+    }
+    say(text, t=2.5) { this.msg = text; this.msg_t = t; }
+    pick_tile(i) {
+        let tile = this.tiles[i]; if (tile.used) return;
+        for (let k = 0; k < this.slots.length; k++) {
+            if (this.slots[k] === null) { this.slots[k] = i; tile.used = true; return; }
+        }
+        this.say("Все ячейки заняты. Кликни по ячейке, чтобы вернуть букву.");
+    }
+    pick_letter(ch) {
+        for (let i = 0; i < this.tiles.length; i++) {
+            if (!this.tiles[i].used && this.tiles[i].ch === ch) { this.pick_tile(i); return; }
+        }
+    }
+    clear_slot(k) {
+        let i = this.slots[k]; if (i === null || this.tiles[i].locked) return;
+        this.tiles[i].used = false; this.slots[k] = null;
+    }
+    backspace() {
+        for (let k = this.slots.length - 1; k >= 0; k--) {
+            if (this.slots[k] !== null && !this.tiles[this.slots[k]].locked) { this.clear_slot(k); return; }
+        }
+    }
+    clear_all() { for (let k = 0; k < this.slots.length; k++) this.clear_slot(k); this.say("Ячейки очищены"); }
+    use_hint() {
+        if (this.hints <= 0) { this.say("Подсказки закончились"); return; }
+        let target = null;
+        for (let k = 0; k < this.slots.length; k++) {
+            if (this.slots[k] === null || this.tiles[this.slots[k]].ch !== this.word[k]) { target = k; break; }
+        }
+        if (target === null) { this.say("Слово уже собрано верно"); return; }
+        this.clear_slot(target);
+        for (let i = 0; i < this.tiles.length; i++) {
+            if (!this.tiles[i].used && this.tiles[i].ch === this.word[target]) {
+                this.slots[target] = i; this.tiles[i].used = this.tiles[i].locked = true; break;
+            }
+        }
+        this.hints--; this.hints_used++; this.score = Math.max(0, this.score - 30);
+        this.say("Подсказка: буква закреплена (-30 очков)");
+    }
+    check() {
+        if (this.slots.includes(null)) { this.say("Заполни все ячейки"); this.shake = 0.25; return; }
+        let attempt = this.slots.map(i => this.tiles[i].ch).join('');
+        if (attempt === this.word) {
+            let secs = (performance.now() - this.word_start) / 1000.0;
+            this.gained = 100 + this.level * 5 + Math.max(0, Math.floor(45 - secs)) * 2;
+            this.score += this.gained; this.state = "LEVELUP"; this.timer = 2.0;
+            if (this.progress.on_level_complete("word")) this.return_to_menu = true;
+        } else {
+            this.lives--; this.mistakes++; this.score = Math.max(0, this.score - 25); this.shake = 0.5;
+            if (this.lives <= 0) this.state = "GAMEOVER";
+            else this.say("Не то слово. Минус попытка (-25 очков)");
+        }
+    }
+    next_level() {
+        this.level++;
+        if (this.level >= WORDS.length) { this.state = "WIN"; this.total = (performance.now() - this.start_time) / 1000.0; }
+        else { this.load_level(); this.state = "PLAY"; }
+    }
+    button(name) {
+        if (name === "reset") this.clear_all();
+        else if (name === "hint") this.use_hint();
+        else if (name === "check") this.check();
+    }
+    update(dt) {
+        this.t += dt; this.type_pos += dt * 48; this.shake = Math.max(0.0, this.shake - dt);
+        this.msg_t = Math.max(0.0, this.msg_t - dt);
+        if (this.state === "LEVELUP") {
+            this.timer -= dt;
+            if (this.timer <= 0) {
+                if (this.return_to_menu) { this.return_to_menu = false; return "menu"; }
+                this.next_level();
+            }
+        }
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t); this.regions = [];
+        if (this.state === "TITLE") this.draw_title();
+        else {
+            this.draw_play();
+            if (this.state === "LEVELUP") this.draw_levelup();
+            else if (this.state === "GAMEOVER") this.draw_end("GAME OVER", "Попытки кончились. Слово: " + this.word);
+            else if (this.state === "WIN") this.draw_end("WIN", "Все 25 слов собраны.");
+        }
+    }
+    draw_title() {
+        let s = this.s;
+        s.box(12, 6, Math.min(62, s.cols-20), 18, COLORS.MID, "СЛОВОПЛЕТ");
+        s.center(9, "С Л О В О П Л Е Т", COLORS.WHITE);
+        s.center(12, "Читаешь загадку — собираешь слово из букв.", COLORS.TEXT);
+        s.center(15, "МЫШЬ/ТАЧ: клик по плитке / ячейке", COLORS.MID);
+        s.center(16, "КЛАВИАТУРА: буквы, BACKSPACE, ENTER", COLORS.MID);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(20, "[ ENTER ИЛИ КЛИК — НАЧАТЬ ]", blink);
+        s.center(26, "ESC — в меню", COLORS.DIM);
+    }
+    draw_play() {
+        let s = this.s;
+        s.box(0, 0, s.cols, s.rows, COLORS.DIM, "СЛОВОПЛЕТ");
+        s.center(1, "С Л О В О П Л Е Т", COLORS.BRIGHT);
+        s.put(1, 3, "-".repeat(s.cols - 2), COLORS.DIM);
+        s.put(3, 4, `УРОВЕНЬ ${String(this.level+1).padStart(2,'0')}/${WORDS.length}`, COLORS.TEXT);
+        s.center(4, `ОЧКИ ${String(this.score).padStart(5,'0')}`, COLORS.BRIGHT);
+        let hud = `ЖИЗНИ ${"*".repeat(this.lives)}${".".repeat(3-this.lives)}   ПОДСКАЗКИ ${this.hints}`;
+        s.put(s.cols - 3 - hud.length, 4, hud, COLORS.TEXT);
+        
+        let bw = Math.min(60, s.cols - 10), bx = Math.floor((s.cols - bw) / 2), by = 7;
+        s.box(bx, by, bw, 6, COLORS.MID, "ЗАГАДКА");
+        let k = Math.floor(this.type_pos);
+        let lines = wrapText(this.riddle, bw - 6);
+        for (let i = 0; i < lines.length; i++) {
+            if (k <= 0) break;
+            s.put(bx + 3, by + 2 + i, lines[i].substring(0, k), COLORS.TEXT);
+            k -= lines[i].length;
+        }
+        
+        let n = this.word.length, step = s.cols < 50 ? 4 : 6;
+        let dx = this.shake > 0 ? Math.round(Math.sin(this.t * 60) * 2) : 0;
+        let x0 = Math.floor((s.cols - (n * step - 1)) / 2) + dx;
+        for (let i = 0; i < n; i++) {
+            let x = x0 + i * step, tid = this.slots[i];
+            let ch = tid === null ? "_" : this.tiles[tid].ch;
+            let col = tid === null ? COLORS.DIM : COLORS.WHITE;
+            let border = tid === null ? COLORS.DIM : (this.tiles[tid].locked ? COLORS.DIM : COLORS.MID);
+            s.box(x, 15, 5, 3, border); s.put(x + 2, 16, ch, col);
+            this.regions.push({r: {x: x, y: 15, w: 5, h: 3}, kind: "slot", data: i});
+        }
+        
+        let m = this.tiles.length;
+        let tx0 = Math.floor((s.cols - (m * step - 1)) / 2);
+        for (let i = 0; i < m; i++) {
+            let x = tx0 + i * step, t = this.tiles[i];
+            let r = {x: x, y: 20, w: 5, h: 3};
+            if (t.used) { s.box(x, 20, 5, 3, '#282830'); s.put(x + 2, 21, ".", '#282830'); }
+            else {
+                s.box(x, 20, 5, 3, COLORS.MID, null, '-', '+');
+                s.put(x + 2, 21, t.ch, COLORS.TEXT);
+                this.regions.push({r: r, kind: "tile", data: i});
+            }
+        }
+        
+        let buttons = [["reset", "СБРОС"], ["hint", `ПОДСКАЗКА x${this.hints}`], ["check", "ПРОВЕРИТЬ"]];
+        let x = Math.floor((s.cols - 30) / 2);
+        for (let [name, lbl] of buttons) {
+            let w = lbl.length + 4, r = {x: x, y: 25, w: w, h: 3};
+            s.box(x, 25, w, 3, COLORS.MID, null, '-', '+');
+            s.center(26, lbl, COLORS.TEXT, x, w);
+            this.regions.push({r: r, kind: "btn", data: name});
+            x += w + 2;
+        }
+        if (this.msg_t > 0) s.center(28, this.msg, COLORS.BRIGHT);
+    }
+    draw_levelup() {
+        let s = this.s, w = Math.min(56, s.cols-10), h = 12, x = Math.floor((s.cols - w) / 2), y = 9;
+        s.box(x, y, w, h, COLORS.BRIGHT, "LEVEL UP", '=');
+        s.banner(y + 2, "LEVEL UP", COLORS.WHITE);
+        s.center(y + 8, "СЛОВО: " + this.word, COLORS.BRIGHT);
+        s.center(y + 9, `+${this.gained} ОЧКОВ   УРОВЕНЬ ${this.level + 2}`, COLORS.TEXT);
+        s.center(y + 10, "клик / ENTER — дальше", COLORS.DIM);
+    }
+    draw_end(title, subtitle) {
+        let s = this.s, w = Math.min(66, s.cols-10), h = 16, x = Math.floor((s.cols - w) / 2), y = 7;
+        s.box(x, y, w, h, COLORS.BRIGHT, title, '=');
+        s.banner(y + 2, title, COLORS.WHITE);
+        s.center(y + 8, subtitle, COLORS.TEXT);
+        let secs = Math.floor(this.total || (performance.now() - this.start_time) / 1000.0);
+        s.center(y + 10, `ОЧКИ: ${this.score}    УРОВЕНЬ: ${this.level + 1}/${WORDS.length}`, COLORS.BRIGHT);
+        s.center(y + 11, `ОШИБОК: ${this.mistakes}   ПОДСКАЗОК: ${this.hints_used}   ВРЕМЯ: ${secs} сек`, COLORS.MID);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(y + 13, "[ R — НАЧАТЬ ЗАНОВО ]", blink);
+    }
+    on_click(pos) {
+        if (this.state === "TITLE") { this.state = "PLAY"; this.start_time = performance.now(); this.word_start = performance.now(); return; }
+        if (this.state === "LEVELUP") { this.next_level(); return; }
+        if (this.state === "GAMEOVER" || this.state === "WIN") { this.reset(); this.state = "PLAY"; return; }
+        for (let {r, kind, data} of this.regions) {
+            if (pos.x >= r.x && pos.x < r.x + r.w && pos.y >= r.y && pos.y < r.y + r.h) {
+                if (kind === "tile") this.pick_tile(data);
+                else if (kind === "slot") this.clear_slot(data);
+                else this.button(data);
+                return;
+            }
+        }
+    }
+    on_key(e) {
+        if (e.key === "Escape") return "menu";
+        if (this.state === "TITLE" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; this.start_time = performance.now(); this.word_start = performance.now(); return; }
+        if (this.state === "LEVELUP" && (e.key === "Enter" || e.key === " ")) { this.next_level(); return; }
+        if ((this.state === "GAMEOVER" || this.state === "WIN") && e.key === "r") { this.reset(); this.state = "PLAY"; return; }
+        if (e.key === "Enter") this.check();
+        else if (e.key === "Backspace") this.backspace();
+        else if (e.key.length === 1 && ALPHABET.includes(e.key.toUpperCase())) {
+            let ch = e.key.toUpperCase();
+            if (ch === "H" && !this.word.includes("H")) this.use_hint();
+            else this.pick_letter(ch);
+        }
+    }
+}
+
+// ========================= ИГРА 2: МИКРОСХЕМА =========================
+class MicroGame {
+    constructor(scr, stars, progress) {
+        this.s = scr; this.stars = stars; this.progress = progress;
+        this.t = 0.0; this.name = "МИКРОСХЕМА"; this.key = "micro"; this.reset();
+    }
+    reset() {
+        this.level = 0; this.score = 0; this.steps = 0; this.start_time = performance.now();
+        this.return_to_menu = false; this.state = "TITLE"; this.load_level();
+    }
+    load_level() {
+        let w = 15 + this.level * 2, h = 11 + this.level * 2;
+        if (w > this.s.cols - 6) w = this.s.cols - 6;
+        if (h > this.s.rows - 10) h = this.s.rows - 10;
+        if (w % 2 === 0) w += 1; if (h % 2 === 0) h += 1;
+        this.maze_w = w; this.maze_h = h;
+        this.grid = this.generate_maze(w, h);
+        this.player = [1, 1]; this.exit = [w - 2, h - 2]; this.grid[this.exit[1]][this.exit[0]] = 'E';
+        let n_chips = 5 + this.level * 2;
+        let candidates = [];
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (this.grid[y][x] === ' ' && (x!==1 || y!==1)) candidates.push([x, y]);
+        for (let i = candidates.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1)); [candidates[i], candidates[j]] = [candidates[j], candidates[i]]; }
+        this.chips = candidates.slice(0, Math.min(n_chips, candidates.length));
+        for (let [x, y] of this.chips) this.grid[y][x] = '*';
+        this.total_chips = this.chips.length; this.collected = 0;
+        this.msg = "Собери все * и дойди до E"; this.msg_t = 3.0;
+    }
+    generate_maze(w, h) {
+        let grid = Array.from({length: h}, () => Array(w).fill('#'));
+        let stack = [[1, 1]]; grid[1][1] = ' ';
+        while (stack.length > 0) {
+            let [x, y] = stack[stack.length - 1];
+            let dirs = [[0, -2], [2, 0], [0, 2], [-2, 0]];
+            for (let i = dirs.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1)); [dirs[i], dirs[j]] = [dirs[j], dirs[i]]; }
+            let carved = false;
+            for (let [dx, dy] of dirs) {
+                let nx = x + dx, ny = y + dy;
+                if (nx >= 1 && nx < w - 1 && ny >= 1 && ny < h - 1 && grid[ny][nx] === '#') {
+                    grid[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = ' '; grid[ny][nx] = ' ';
+                    stack.push([nx, ny]); carved = true; break;
+                }
+            }
+            if (!carved) stack.pop();
+        }
+        grid[h - 2][w - 2] = ' ';
+        if (grid[h - 3][w - 2] === '#' && grid[h - 2][w - 3] === '#') grid[h - 3][w - 2] = ' ';
+        return grid;
+    }
+    say(text, t=2.5) { this.msg = text; this.msg_t = t; }
+    move(dx, dy) {
+        if (this.state !== "PLAY") return;
+        let [x, y] = this.player, nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= this.maze_w || ny < 0 || ny >= this.maze_h) return;
+        let cell = this.grid[ny][nx]; if (cell === '#') return;
+        this.player = [nx, ny]; this.steps++;
+        if (cell === '*') {
+            this.grid[ny][nx] = ' '; this.chips = this.chips.filter(c => c[0] !== nx || c[1] !== ny);
+            this.collected++; this.score += 10; this.say("Кусочек микросхемы +10", 1.5);
+        } else if (cell === 'E') {
+            if (this.collected === this.total_chips) {
+                this.score += 100 + this.level * 20; this.state = "LEVELUP"; this.timer = 2.0;
+                this.say("Микросхема собрана! +бонус", 2.0);
+                if (this.progress.on_level_complete("micro")) this.return_to_menu = true;
+            } else { this.say(`Собери все кусочки сначала (${this.collected}/${this.total_chips})`, 2.5); }
+        }
+    }
+    next_level() { this.level++; this.load_level(); this.state = "PLAY"; }
+    update(dt) {
+        this.t += dt; this.msg_t = Math.max(0.0, this.msg_t - dt);
+        if (this.state === "LEVELUP") {
+            this.timer -= dt; if (this.timer <= 0) { if (this.return_to_menu) { this.return_to_menu = false; return "menu"; } this.next_level(); }
+        }
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t);
+        if (this.state === "TITLE") this.draw_title();
+        else { this.draw_play(); if (this.state === "LEVELUP") this.draw_levelup(); }
+    }
+    draw_title() {
+        let s = this.s; s.box(10, 5, Math.min(66, s.cols-10), 20, COLORS.MID, "МИКРОСХЕМА");
+        s.center(8, "М И К Р О С Х Е М А", COLORS.WHITE);
+        s.center(11, "Ты — маленький робот @ внутри процессора.", COLORS.TEXT);
+        s.center(13, "Собери все * и дойди до выхода E.", COLORS.TEXT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(19, "[ ENTER ИЛИ КЛИК — НАЧАТЬ ]", blink); s.center(26, "ESC — в меню", COLORS.DIM);
+    }
+    draw_play() {
+        let s = this.s; s.box(0, 0, s.cols, s.rows, COLORS.DIM, "МИКРОСХЕМА");
+        s.center(1, "М И К Р О С Х Е М А", COLORS.BRIGHT); s.put(1, 3, "-".repeat(s.cols - 2), COLORS.DIM);
+        s.put(3, 4, `УРОВЕНЬ ${String(this.level+1).padStart(2,'0')}`, COLORS.TEXT);
+        s.put(Math.floor(s.cols/2)-4, 4, `ШАГИ ${String(this.steps).padStart(4,'0')}`, COLORS.MID);
+        s.center(4, `ОЧКИ ${String(this.score).padStart(5,'0')}`, COLORS.BRIGHT);
+        s.put(s.cols - 12, 4, `ЧИПЫ ${this.collected}/${this.total_chips}`, COLORS.TEXT);
+        let ox = Math.floor((s.cols - this.maze_w) / 2), oy = 6;
+        for (let y = 0; y < this.maze_h; y++) {
+            for (let x = 0; x < this.maze_w; x++) {
+                let c = this.grid[y][x], ch = ' ', col = COLORS.BG;
+                if (c === '#') { ch = '#'; col = COLORS.MID; }
+                else if (c === ' ') { ch = '.'; col = COLORS.DIM; }
+                else if (c === '*') { ch = (Math.floor(this.t * 3 + x + y) % 2 === 0) ? '*' : '+'; col = COLORS.BRIGHT; }
+                else if (c === 'E') { ch = 'E'; col = (this.collected === this.total_chips) ? COLORS.GREEN : '#50A050'; }
+                s.put(ox + x, oy + y, ch, col);
+            }
+        }
+        s.put(ox + this.player[0], oy + this.player[1], (Math.floor(this.t * 4) % 2 === 0) ? '@' : COLORS.BRIGHT, COLORS.WHITE);
+        if (this.msg_t > 0) s.center(s.rows - 3, this.msg, COLORS.BRIGHT);
+        s.center(s.rows - 2, "Стрелки/WASD — движение   ESC — меню", COLORS.DIM);
+    }
+    draw_levelup() {
+        let s = this.s, w = Math.min(56, s.cols-10), h = 10, x = Math.floor((s.cols - w) / 2), y = 10;
+        s.box(x, y, w, h, COLORS.BRIGHT, "LEVEL UP", '='); s.banner(y + 2, "LEVEL UP", COLORS.WHITE);
+        s.center(y + 8, `ШАГОВ: ${this.steps}   ОЧКОВ: ${this.score}`, COLORS.TEXT);
+        s.center(y + 9, "клик / ENTER — дальше", COLORS.DIM);
+    }
+    on_click(pos) {
+        if (this.state === "TITLE") { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP") { this.next_level(); return; }
+    }
+    on_key(e) {
+        if (e.key === "Escape") return "menu";
+        if (this.state === "TITLE" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP" && (e.key === "Enter" || e.key === " ")) { this.next_level(); return; }
+        if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") this.move(0, -1);
+        else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") this.move(0, 1);
+        else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") this.move(-1, 0);
+        else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") this.move(1, 0);
+    }
+}
+
+// ========================= ИГРА 3: ЗМЕЙКА =========================
+class SnakeGame {
+    constructor(scr, stars, progress) {
+        this.s = scr; this.stars = stars; this.progress = progress;
+        this.t = 0.0; this.name = "ЗМЕЙКА"; this.key = "snake"; this.reset();
+    }
+    reset() {
+        this.field_w = Math.min(60, this.s.cols - 10); this.field_h = Math.min(20, this.s.rows - 10);
+        this.ox = Math.floor((this.s.cols - this.field_w) / 2); this.oy = 6;
+        this.snake = [{x: Math.floor(this.field_w / 2), y: Math.floor(this.field_h / 2)}];
+        this.dir = {x: 1, y: 0}; this.next_dir = {x: 1, y: 0}; this.food = null;
+        this.score = 0; this.length = 1; this.tick_time = 0.15; this.tick_acc = 0.0;
+        this.state = "TITLE"; this.start_time = performance.now();
+        this.msg = "Собирай * стрелками. Не врезайся в себя!"; this.msg_t = 3.0;
+        this.food_eaten = 0; this.return_to_menu = false; this.spawn_food();
+    }
+    spawn_food() {
+        while (true) {
+            let x = Math.floor(Math.random() * this.field_w), y = Math.floor(Math.random() * this.field_h);
+            if (!this.snake.some(s => s.x === x && s.y === y)) { this.food = {x, y}; return; }
+        }
+    }
+    step() {
+        this.dir = this.next_dir;
+        let nx = this.snake[0].x + this.dir.x, ny = this.snake[0].y + this.dir.y;
+        if (nx < 0 || nx >= this.field_w || ny < 0 || ny >= this.field_h || this.snake.some(s => s.x === nx && s.y === ny)) {
+            this.state = "GAMEOVER"; this.total = (performance.now() - this.start_time) / 1000.0; return;
+        }
+        this.snake.unshift({x: nx, y: ny});
+        if (nx === this.food.x && ny === this.food.y) {
+            this.score += 10 + this.length; this.length++; this.food_eaten++;
+            this.tick_time = Math.max(0.05, this.tick_time - 0.004); this.spawn_food();
+            this.msg = "Звезда! +" + (10 + this.length - 1); this.msg_t = 1.0;
+            if (this.food_eaten % 5 === 0) {
+                if (this.progress.on_level_complete("snake")) { this.return_to_menu = true; this.state = "LEVELUP"; this.timer = 2.0; }
+            }
+        } else { this.snake.pop(); }
+    }
+    update(dt) {
+        this.t += dt; this.msg_t = Math.max(0.0, this.msg_t - dt);
+        if (this.state === "PLAY") {
+            this.tick_acc += dt;
+            while (this.tick_acc >= this.tick_time) { this.tick_acc -= this.tick_time; this.step(); if (this.state !== "PLAY") break; }
+        } else if (this.state === "LEVELUP") {
+            this.timer -= dt; if (this.timer <= 0) { if (this.return_to_menu) { this.return_to_menu = false; return "menu"; } this.state = "PLAY"; }
+        }
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t);
+        if (this.state === "TITLE") this.draw_title();
+        else { this.draw_play(); if (this.state === "GAMEOVER") this.draw_gameover(); else if (this.state === "LEVELUP") this.draw_levelup(); }
+    }
+    draw_title() {
+        let s = this.s; s.box(12, 6, Math.min(62, s.cols-20), 18, COLORS.MID, "ЗМЕЙКА");
+        s.center(9, "З М Е Й К А", COLORS.WHITE); s.center(12, "Классика ASCII. Собирай звёзды *.", COLORS.TEXT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(20, "[ ENTER ИЛИ КЛИК — НАЧАТЬ ]", blink); s.center(26, "ESC — в меню", COLORS.DIM);
+    }
+    draw_play() {
+        let s = this.s; s.box(0, 0, s.cols, s.rows, COLORS.DIM, "ЗМЕЙКА");
+        s.center(1, "З М Е Й К А", COLORS.BRIGHT); s.put(1, 3, "-".repeat(s.cols - 2), COLORS.DIM);
+        s.put(3, 4, `ДЛИНА ${String(this.length).padStart(3,'0')}`, COLORS.TEXT);
+        s.center(4, `ОЧКИ ${String(this.score).padStart(5,'0')}`, COLORS.BRIGHT);
+        s.box(this.ox - 1, this.oy - 1, this.field_w + 2, this.field_h + 2, COLORS.MID);
+        for (let y = 0; y < this.field_h; y++) {
+            for (let x = 0; x < this.field_w; x++) {
+                if (this.snake[0].x === x && this.snake[0].y === y) s.put(this.ox + x, this.oy + y, '@', COLORS.WHITE);
+                else if (this.snake.some(s => s.x === x && s.y === y)) s.put(this.ox + x, this.oy + y, 'o', COLORS.TEXT);
+                else if (this.food.x === x && this.food.y === y) s.put(this.ox + x, this.oy + y, (Math.floor(this.t * 4 + x + y) % 2 === 0) ? '*' : '+', COLORS.BRIGHT);
+                else s.put(this.ox + x, this.oy + y, '.', '#16161C');
+            }
+        }
+        if (this.msg_t > 0) s.center(s.rows - 3, this.msg, COLORS.BRIGHT);
+        s.center(s.rows - 2, "Стрелки/WASD — поворот   ESC — меню", COLORS.DIM);
+    }
+    draw_levelup() {
+        let s = this.s, w = Math.min(56, s.cols-10), h = 10, x = Math.floor((s.cols - w) / 2), y = 10;
+        s.box(x, y, w, h, COLORS.BRIGHT, "LEVEL UP", '='); s.banner(y + 2, "LEVEL UP", COLORS.WHITE);
+        s.center(y + 8, `ДЛИНА: ${this.length}   ОЧКИ: ${this.score}`, COLORS.TEXT);
+        s.center(y + 9, "клик / ENTER — дальше", COLORS.DIM);
+    }
+    draw_gameover() {
+        let s = this.s, w = Math.min(60, s.cols-10), h = 14, x = Math.floor((s.cols - w) / 2), y = 8;
+        s.box(x, y, w, h, COLORS.BRIGHT, "GAME OVER", '='); s.banner(y + 2, "GAME OVER", COLORS.WHITE);
+        s.center(y + 8, `ДЛИНА: ${this.length}   ОЧКИ: ${this.score}`, COLORS.BRIGHT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(y + 11, "[ R — ЗАНОВО ]", blink);
+    }
+    on_click(pos) {
+        if (this.state === "TITLE") { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "GAMEOVER") { this.reset(); this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP") { this.state = "PLAY"; return; }
+    }
+    on_key(e) {
+        if (e.key === "Escape") return "menu";
+        if (this.state === "TITLE" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "GAMEOVER" && e.key === "r") { this.reset(); this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; return; }
+        if ((e.key === "ArrowUp" || e.key === "w") && this.dir.y !== 1) this.next_dir = {x: 0, y: -1};
+        else if ((e.key === "ArrowDown" || e.key === "s") && this.dir.y !== -1) this.next_dir = {x: 0, y: 1};
+        else if ((e.key === "ArrowLeft" || e.key === "a") && this.dir.x !== 1) this.next_dir = {x: -1, y: 0};
+        else if ((e.key === "ArrowRight" || e.key === "d") && this.dir.x !== -1) this.next_dir = {x: 1, y: 0};
+    }
+}
+
+// ========================= ИГРА 4: ПРОВОДА =========================
+class WiresGame {
+    constructor(scr, stars, progress) {
+        this.s = scr; this.stars = stars; this.progress = progress;
+        this.t = 0.0; this.name = "ПРОВОДА"; this.key = "wires"; this.reset();
+    }
+    reset() {
+        this.level = 0; this.score = 0; this.mistakes = 0; this.state = "TITLE";
+        this.start_time = performance.now(); this.return_to_menu = false; this.load_level();
+    }
+    load_level() {
+        let n_pairs = Math.min(4 + this.level, 8);
+        let letters = "ABCDEFGH".substring(0, n_pairs);
+        this.pairs = letters.split(''); this.left_contacts = letters.split('');
+        this.right_contacts = letters.split('');
+        for (let i = this.right_contacts.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1)); [this.right_contacts[i], this.right_contacts[j]] = [this.right_contacts[j], this.right_contacts[i]]; }
+        this.connections = {}; this.screens_lit = new Set(); this.selected_left = null;
+        this.msg = "Кликни на контакт слева, потом на такой же справа"; this.msg_t = 3.0;
+    }
+    say(text, t=2.5) { this.msg = text; this.msg_t = t; }
+    check_connection(left, right) {
+        if (left === right) {
+            this.connections[left] = right; this.screens_lit.add(left);
+            this.score += 20 + this.level * 5; this.say(`Верно! Экранчик загорелся +${20 + this.level * 5}`, 1.5);
+            if (this.screens_lit.size === this.pairs.length) {
+                this.score += 100; this.state = "LEVELUP"; this.timer = 2.0; this.say("Все экранчики зажглись! +бонус", 2.0);
+                if (this.progress.on_level_complete("wires")) this.return_to_menu = true;
+            }
+        } else { this.mistakes++; this.score = Math.max(0, this.score - 10); this.say("Неверно! Минус 10 очков", 1.5); }
+    }
+    next_level() { this.level++; this.load_level(); this.state = "PLAY"; }
+    update(dt) {
+        this.t += dt; this.msg_t = Math.max(0.0, this.msg_t - dt);
+        if (this.state === "LEVELUP") {
+            this.timer -= dt; if (this.timer <= 0) { if (this.return_to_menu) { this.return_to_menu = false; return "menu"; } this.next_level(); }
+        }
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t);
+        if (this.state === "TITLE") this.draw_title();
+        else { this.draw_play(); if (this.state === "LEVELUP") this.draw_levelup(); }
+    }
+    draw_title() {
+        let s = this.s; s.box(10, 5, Math.min(66, s.cols-10), 20, COLORS.MID, "ПРОВОДА");
+        s.center(8, "П Р О В О Д А", COLORS.WHITE); s.center(11, "Соедини контакты с одинаковыми буквами.", COLORS.TEXT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(19, "[ ENTER ИЛИ КЛИК — НАЧАТЬ ]", blink); s.center(26, "ESC — в меню", COLORS.DIM);
+    }
+    draw_play() {
+        let s = this.s; s.box(0, 0, s.cols, s.rows, COLORS.DIM, "ПРОВОДА");
+        s.center(1, "П Р О В О Д А", COLORS.BRIGHT); s.put(1, 3, "-".repeat(s.cols - 2), COLORS.DIM);
+        s.put(3, 4, `УРОВЕНЬ ${String(this.level+1).padStart(2,'0')}`, COLORS.TEXT);
+        s.center(4, `ОЧКИ ${String(this.score).padStart(5,'0')}`, COLORS.BRIGHT);
+        s.put(s.cols - 12, 4, `ОШИБКИ ${this.mistakes}`, COLORS.TEXT);
+        
+        let n = this.pairs.length, left_x = 5, right_x = s.cols - 10, start_y = 8, spacing = 3;
+        for (let i = 0; i < n; i++) {
+            let letter = this.left_contacts[i], y = start_y + i * spacing;
+            let selected = this.selected_left === letter, col = selected ? COLORS.BRIGHT : COLORS.MID;
+            s.box(left_x, y, 5, 2, col, null, '-', selected ? '*' : '+'); s.center(y, letter, COLORS.WHITE, left_x, 5);
+        }
+        for (let i = 0; i < n; i++) {
+            let letter = this.right_contacts[i], y = start_y + i * spacing;
+            s.box(right_x, y, 5, 2, COLORS.MID, null, '-', '*'); s.center(y, letter, COLORS.TEXT, right_x, 5);
+        }
+        for (let letter in this.connections) {
+            let left_idx = this.left_contacts.indexOf(letter), right_idx = this.right_contacts.indexOf(this.connections[letter]);
+            let y1 = start_y + left_idx * spacing;
+            for (let x = left_x + 5; x < right_x; x++) {
+                let ch = ((x + Math.floor(this.t * 8)) % 3 !== 0) ? '~' : '-';
+                s.put(x, y1, ch, this.screens_lit.has(letter) ? COLORS.GREEN : COLORS.MID);
+            }
+        }
+        let screen_x = Math.floor(s.cols / 2) - 3;
+        for (let i = 0; i < n; i++) {
+            let letter = this.pairs[i], y = start_y + i * spacing;
+            if (this.screens_lit.has(letter)) {
+                s.box(screen_x, y, 7, 2, COLORS.GREEN, null, '-', '*'); s.center(y, "ON", COLORS.GREEN, screen_x, 7);
+            } else { s.box(screen_x, y, 7, 2, COLORS.DIM, null, '-', '+'); s.center(y, "off", COLORS.DIM, screen_x, 7); }
+        }
+        if (this.msg_t > 0) s.center(s.rows - 3, this.msg, COLORS.BRIGHT);
+        s.center(s.rows - 2, "Клик по контактам   ESC — меню", COLORS.DIM);
+    }
+    draw_levelup() {
+        let s = this.s, w = Math.min(56, s.cols-10), h = 10, x = Math.floor((s.cols - w) / 2), y = 10;
+        s.box(x, y, w, h, COLORS.BRIGHT, "LEVEL UP", '='); s.banner(y + 2, "LEVEL UP", COLORS.WHITE);
+        s.center(y + 8, `ОЧКИ: ${this.score}   УРОВЕНЬ: ${this.level + 2}`, COLORS.TEXT);
+        s.center(y + 9, "клик / ENTER — дальше", COLORS.DIM);
+    }
+    on_click(pos) {
+        if (this.state === "TITLE") { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP") { this.next_level(); return; }
+        if (this.state !== "PLAY") return;
+        let n = this.pairs.length, left_x = 5, right_x = this.s.cols - 10, start_y = 8, spacing = 3;
+        for (let i = 0; i < n; i++) {
+            let letter = this.left_contacts[i], y = start_y + i * spacing;
+            if (pos.x >= left_x && pos.x < left_x + 5 && pos.y >= y && pos.y < y + 2) {
+                if (letter in this.connections) { this.say("Уже соединено", 1.0); return; }
+                this.selected_left = letter; this.say("Выбрано: " + letter, 1.0); return;
+            }
+        }
+        if (this.selected_left) {
+            for (let i = 0; i < n; i++) {
+                let letter = this.right_contacts[i], y = start_y + i * spacing;
+                if (pos.x >= right_x && pos.x < right_x + 5 && pos.y >= y && pos.y < y + 2) {
+                    if (Object.values(this.connections).includes(letter)) { this.say("Уже соединено", 1.0); return; }
+                    this.check_connection(this.selected_left, letter); this.selected_left = null; return;
+                }
+            }
+        }
+    }
+    on_key(e) {
+        if (e.key === "Escape") return "menu";
+        if (this.state === "TITLE" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP" && (e.key === "Enter" || e.key === " ")) { this.next_level(); return; }
+    }
+}
+
+// ========================= ИГРА 5: ТЕТРИС =========================
+class TetrisGame {
+    constructor(scr, stars, progress) {
+        this.s = scr; this.stars = stars; this.progress = progress;
+        this.t = 0.0; this.name = "ТЕТРИС"; this.key = "tetris"; this.reset();
+    }
+    reset() {
+        this.field_w = 10; this.field_h = 20;
+        let total_w = 22; this.ox = Math.floor((this.s.cols - total_w) / 2); this.oy = 6;
+        this.grid = Array.from({length: this.field_h}, () => Array(this.field_w).fill(0));
+        this.current_piece = null; this.next_piece = this.random_piece(); this.spawn_piece();
+        this.score = 0; this.lines = 0; this.level = 0; this.tick_time = 0.8; this.tick_acc = 0.0;
+        this.state = "TITLE"; this.start_time = performance.now();
+        this.msg = "Стрелки — движение, UP — поворот"; this.msg_t = 3.0;
+        this.battery = 0; this.lines_for_battery = 0; this.return_to_menu = false;
+    }
+    random_piece() {
+        let pieces = [[[1,1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]], [[0,1,1],[1,1,0]], [[1,1,0],[0,1,1]]];
+        return pieces[Math.floor(Math.random() * pieces.length)];
+    }
+    spawn_piece() {
+        this.current_piece = this.next_piece; this.next_piece = this.random_piece();
+        this.piece_x = Math.floor(this.field_w / 2) - Math.floor(this.current_piece[0].length / 2); this.piece_y = 0;
+        if (this.collides(this.piece_x, this.piece_y, this.current_piece)) { this.state = "GAMEOVER"; this.total = (performance.now() - this.start_time) / 1000.0; }
+    }
+    collides(px, py, piece) {
+        for (let y = 0; y < piece.length; y++) {
+            for (let x = 0; x < piece[y].length; x++) {
+                if (piece[y][x]) {
+                    let gx = px + x, gy = py + y;
+                    if (gx < 0 || gx >= this.field_w || gy < 0 || gy >= this.field_h || this.grid[gy][gx]) return true;
+                }
+            }
+        }
+        return false;
+    }
+    merge_piece() {
+        for (let y = 0; y < this.current_piece.length; y++) {
+            for (let x = 0; x < this.current_piece[y].length; x++) {
+                if (this.current_piece[y][x]) this.grid[this.piece_y + y][this.piece_x + x] = 1;
+            }
+        }
+    }
+    clear_lines() {
+        let cleared = 0, new_grid = [];
+        for (let row of this.grid) { if (row.every(c => c === 1)) cleared++; else new_grid.push(row); }
+        for (let i = 0; i < cleared; i++) new_grid.unshift(Array(this.field_w).fill(0));
+        this.grid = new_grid;
+        if (cleared > 0) {
+            this.lines += cleared; this.lines_for_battery += cleared;
+            let points = [0, 100, 300, 500, 800][cleared] || 800;
+            this.score += points * (this.level + 1); this.level = Math.floor(this.lines / 10);
+            this.tick_time = Math.max(0.1, 0.8 - this.level * 0.05);
+            this.msg = "Линии! +" + (points * (this.level + 1)); this.msg_t = 1.5;
+            if (this.lines_for_battery >= 5) {
+                this.lines_for_battery -= 5; this.battery = Math.min(100, this.battery + 20);
+                if (this.battery >= 100) {
+                    this.battery = 0; this.state = "LEVELUP"; this.timer = 2.0; this.msg = "Батарея заряжена! +бонус"; this.msg_t = 2.0;
+                    if (this.progress.on_level_complete("tetris")) this.return_to_menu = true;
+                }
+            }
+        }
+    }
+    rotate() {
+        let rotated = this.current_piece[0].map((_, i) => this.current_piece.map(row => row[i]).reverse());
+        if (!this.collides(this.piece_x, this.piece_y, rotated)) this.current_piece = rotated;
+    }
+    move(dx) { if (!this.collides(this.piece_x + dx, this.piece_y, this.current_piece)) this.piece_x += dx; }
+    drop() {
+        if (!this.collides(this.piece_x, this.piece_y + 1, this.current_piece)) this.piece_y += 1;
+        else { this.merge_piece(); this.clear_lines(); this.spawn_piece(); }
+    }
+    hard_drop() {
+        while (!this.collides(this.piece_x, this.piece_y + 1, this.current_piece)) { this.piece_y += 1; this.score += 2; }
+        this.merge_piece(); this.clear_lines(); this.spawn_piece();
+    }
+    update(dt) {
+        this.t += dt; this.msg_t = Math.max(0.0, this.msg_t - dt);
+        if (this.state === "PLAY") {
+            this.tick_acc += dt;
+            while (this.tick_acc >= this.tick_time) { this.tick_acc -= this.tick_time; this.drop(); if (this.state !== "PLAY") break; }
+        } else if (this.state === "LEVELUP") {
+            this.timer -= dt; if (this.timer <= 0) { if (this.return_to_menu) { this.return_to_menu = false; return "menu"; } this.state = "PLAY"; }
+        }
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t);
+        if (this.state === "TITLE") this.draw_title();
+        else { this.draw_play(); if (this.state === "GAMEOVER") this.draw_gameover(); else if (this.state === "LEVELUP") this.draw_levelup(); }
+    }
+    draw_title() {
+        let s = this.s; s.box(12, 6, Math.min(62, s.cols-20), 18, COLORS.MID, "ТЕТРИС");
+        s.center(9, "Т Е Т Р И С", COLORS.WHITE); s.center(12, "Собирай линии, заряжай батарею.", COLORS.TEXT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(20, "[ ENTER ИЛИ КЛИК — НАЧАТЬ ]", blink); s.center(26, "ESC — в меню", COLORS.DIM);
+    }
+    draw_play() {
+        let s = this.s; s.box(0, 0, s.cols, s.rows, COLORS.DIM, "ТЕТРИС");
+        s.center(1, "Т Е Т Р И С", COLORS.BRIGHT); s.put(1, 3, "-".repeat(s.cols - 2), COLORS.DIM);
+        s.put(3, 4, `УРОВЕНЬ ${String(this.level+1).padStart(2,'0')}`, COLORS.TEXT);
+        s.center(4, `ОЧКИ ${String(this.score).padStart(5,'0')}`, COLORS.BRIGHT);
+        s.put(s.cols - 15, 4, `ЛИНИИ ${String(this.lines).padStart(3,'0')}`, COLORS.MID);
+        
+        s.box(this.ox - 1, this.oy - 1, this.field_w + 2, this.field_h + 2, COLORS.MID);
+        for (let y = 0; y < this.field_h; y++) {
+            for (let x = 0; x < this.field_w; x++) {
+                s.put(this.ox + x, this.oy + y, this.grid[y][x] ? '#' : '.', this.grid[y][x] ? COLORS.TEXT : '#16161C');
+            }
+        }
+        if (this.current_piece) {
+            for (let y = 0; y < this.current_piece.length; y++) {
+                for (let x = 0; x < this.current_piece[y].length; x++) {
+                    if (this.current_piece[y][x]) s.put(this.ox + this.piece_x + x, this.oy + this.piece_y + y, '#', COLORS.BRIGHT);
+                }
+            }
+        }
+        let nx = this.ox + 15;
+        s.box(nx, 6, 10, 6, COLORS.MID, "NEXT");
+        for (let y = 0; y < this.next_piece.length; y++) {
+            for (let x = 0; x < this.next_piece[y].length; x++) {
+                if (this.next_piece[y][x]) s.put(nx + 2 + x, 8 + y, '#', COLORS.TEXT);
+            }
+        }
+        s.box(nx, 14, 10, 8, COLORS.MID, "BATTERY");
+        let battery_h = Math.floor(5 * this.battery / 100);
+        for (let y = 0; y < 5; y++) {
+            s.put(nx + 2, 23 - y, y < battery_h ? '####' : '....', y < battery_h ? COLORS.GREEN : COLORS.DIM);
+        }
+        s.center(22, `${this.battery}%`, COLORS.BRIGHT, nx, 10);
+        if (this.msg_t > 0) s.center(s.rows - 3, this.msg, COLORS.BRIGHT);
+        s.center(s.rows - 2, "Стрелки — движение   UP — поворот   SPACE — drop", COLORS.DIM);
+    }
+    draw_levelup() {
+        let s = this.s, w = Math.min(56, s.cols-10), h = 10, x = Math.floor((s.cols - w) / 2), y = 10;
+        s.box(x, y, w, h, COLORS.BRIGHT, "LEVEL UP", '='); s.banner(y + 2, "LEVEL UP", COLORS.WHITE);
+        s.center(y + 8, `БАТАРЕЯ ЗАРЯЖЕНА! ОЧКИ: ${this.score}`, COLORS.TEXT);
+        s.center(y + 9, "клик / ENTER — дальше", COLORS.DIM);
+    }
+    draw_gameover() {
+        let s = this.s, w = Math.min(60, s.cols-10), h = 14, x = Math.floor((s.cols - w) / 2), y = 8;
+        s.box(x, y, w, h, COLORS.BRIGHT, "GAME OVER", '='); s.banner(y + 2, "GAME OVER", COLORS.WHITE);
+        s.center(y + 8, `ОЧКИ: ${this.score}   ЛИНИИ: ${this.lines}`, COLORS.BRIGHT);
+        let blink = (Math.floor(this.t * 2) % 2 === 0) ? COLORS.BRIGHT : COLORS.DIM;
+        s.center(y + 11, "[ R — ЗАНОВО ]", blink);
+    }
+    on_click(pos) {
+        if (this.state === "TITLE") { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "GAMEOVER") { this.reset(); this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP") { this.state = "PLAY"; return; }
+    }
+    on_key(e) {
+        if (e.key === "Escape") return "menu";
+        if (this.state === "TITLE" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "GAMEOVER" && e.key === "r") { this.reset(); this.state = "PLAY"; this.start_time = performance.now(); return; }
+        if (this.state === "LEVELUP" && (e.key === "Enter" || e.key === " ")) { this.state = "PLAY"; return; }
+        if (e.key === "ArrowLeft") this.move(-1);
+        else if (e.key === "ArrowRight") this.move(1);
+        else if (e.key === "ArrowDown") this.drop();
+        else if (e.key === "ArrowUp") this.rotate();
+        else if (e.key === " ") this.hard_drop();
+    }
+}
+
+// ========================= МЕНЮ =========================
+class Menu {
+    constructor(scr, stars, games, progress) {
+        this.s = scr; this.stars = stars; this.games = games; this.progress = progress;
+        this.t = 0.0; this.sel = 0; this.regions = []; this.star_animation = 0.0;
+    }
+    update(dt) {
+        this.t += dt;
+        if (this.progress.pending_star) { this.star_animation = 3.0; this.progress.pending_star = false; }
+        if (this.star_animation > 0) this.star_animation = Math.max(0.0, this.star_animation - dt);
+    }
+    draw() {
+        let s = this.s; s.clear(); this.stars.draw(s, this.t); this.regions = [];
+        s.center(3, "A S C I I   A R C A D E", COLORS.WHITE);
+        s.center(4, "~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~", COLORS.DIM);
+        s.center(5, "выбери игру мышью/тачем или стрелками + ENTER", COLORS.MID);
+        
+        let max_stars = 20, filled = Math.min(this.progress.total_stars, max_stars);
+        s.center(6, `ЗВЁЗДЫ: ${"*".repeat(filled)}${".".repeat(max_stars - filled)}`, COLORS.YELLOW);
+        
+        let card_w = Math.min(70, s.cols - 10), card_h = 6, x0 = Math.floor((s.cols - card_w) / 2), y0 = 8;
+        for (let i = 0; i < this.games.length; i++) {
+            let g = this.games[i], y = y0 + i * (card_h + 1);
+            let r = {x: x0, y: y, w: card_w, h: card_h};
+            let hover = (this.mousePos && this.mousePos.x >= r.x && this.mousePos.x < r.x + r.w && this.mousePos.y >= r.y && this.mousePos.y < r.y + r.h) || i === this.sel;
+            let col = hover ? COLORS.BRIGHT : COLORS.MID;
+            s.box(x0, y, card_w, card_h, col, ` ${i + 1} `, hover ? '=' : '-', hover ? '*' : '+');
+            s.center(y + 2, g.name, hover ? COLORS.WHITE : COLORS.BRIGHT, x0, card_w);
+            s.center(y + 3, g.subtitle, hover ? COLORS.TEXT : COLORS.MID, x0, card_w);
+            let streak = this.progress.streaks[g.key];
+            s.center(y + 4, `[${"*".repeat(streak)}${".".repeat(3 - streak)}] ${streak}/3`, COLORS.YELLOW, x0, card_w);
+            this.regions.push({r: r, i: i});
+        }
+        s.center(s.rows - 3, "стрелки / свайп / выбор мышью", COLORS.DIM);
+        s.center(s.rows - 2, "внутри игры ESC или кнопка — возврат в меню", COLORS.DIM);
+        
+        if (this.star_animation > 0) {
+            let alpha = Math.floor(200 * (this.star_animation / 3.0));
+            s.ctx.fillStyle = `rgba(0,0,0,${alpha/255})`;
+            s.ctx.fillRect(0, 0, s.canvas.width, 3 * s.ch);
+            s.center(1, "+ ЗВЕЗДА +", COLORS.YELLOW);
+        }
+    }
+    on_click(pos) {
+        for (let {r, i} of this.regions) {
+            if (pos.x >= r.x && pos.x < r.x + r.w && pos.y >= r.y && pos.y < r.y + r.h) return i;
+        }
+        return null;
+    }
+    on_key(e) {
+        if (e.key === "ArrowUp" || e.key === "w") this.sel = (this.sel - 1 + this.games.length) % this.games.length;
+        else if (e.key === "ArrowDown" || e.key === "s") this.sel = (this.sel + 1) % this.games.length;
+        else if (e.key === "Enter" || e.key === " ") return this.sel;
+        return null;
+    }
+}
+
+// ========================= ИНИЦИАЛИЗАЦИЯ =========================
+let scr = new AsciiScreen();
+let stars = new Starfield();
+let progress = new Progress();
+
+let word_game = new WordGame(scr, stars, progress);
+let micro_game = new MicroGame(scr, stars, progress);
+let snake_game = new SnakeGame(scr, stars, progress);
+let wires_game = new WiresGame(scr, stars, progress);
+let tetris_game = new TetrisGame(scr, stars, progress);
+
+let games = [word_game, micro_game, snake_game, wires_game, tetris_game];
+let menu = new Menu(scr, stars, games, progress);
+let current = menu;
+
+// Обработка ввода
+function handleInput(clientX, clientY) {
+    let rect = scr.canvas.getBoundingClientRect();
+    let x = (clientX - rect.left);
+    let y = (clientY - rect.top);
+    let gx = Math.floor(x / scr.effective_cw);
+    let gy = Math.floor(y / scr.effective_ch);
+    let pos = {x: gx, y: gy};
+    menu.mousePos = pos;
+    
+    if (current === menu) {
+        let idx = menu.on_click(pos);
+        if (idx !== null) { let g = games[idx]; g.reset(); g.state = "TITLE"; current = g; }
+    } else {
+        current.on_click(pos);
+    }
+}
+
+scr.canvas.addEventListener('mousedown', e => handleInput(e.clientX, e.clientY));
+scr.canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    handleInput(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+scr.canvas.addEventListener('mousemove', e => {
+    let rect = scr.canvas.getBoundingClientRect();
+    menu.mousePos = {x: Math.floor((e.clientX - rect.left) / scr.effective_cw), y: Math.floor((e.clientY - rect.top) / scr.effective_ch)};
+});
+
+window.addEventListener('keydown', e => {
+    if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+    if (current === menu) {
+        let idx = menu.on_key(e);
+        if (idx !== null) { let g = games[idx]; g.reset(); g.state = "TITLE"; current = g; }
+    } else {
+        let res = current.on_key(e);
+        if (res === "menu") current = menu;
+    }
+});
+
+// Мобильные кнопки
+function bindMobileBtn(id, key) {
+    let btn = document.getElementById(id);
+    if (!btn) return;
+    let trigger = (e) => { e.preventDefault(); window.dispatchEvent(new KeyboardEvent('keydown', {key: key, code: key})); };
+    btn.addEventListener('touchstart', trigger, {passive: false});
+    btn.addEventListener('mousedown', trigger);
+}
+bindMobileBtn('btn-up', 'ArrowUp');
+bindMobileBtn('btn-down', 'ArrowDown');
+bindMobileBtn('btn-left', 'ArrowLeft');
+bindMobileBtn('btn-right', 'ArrowRight');
+bindMobileBtn('btn-action1', 'Enter');
+bindMobileBtn('btn-action2', 'Backspace');
+
+document.getElementById('btn-menu').addEventListener('click', () => { current = menu; });
+
+// Игровой цикл
+let lastTime = performance.now();
+function loop(now) {
+    let dt = (now - lastTime) / 1000.0;
+    lastTime = now;
+    
+    let result = current.update(dt);
+    if (result === "menu") current = menu;
+    
+    current.draw();
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
